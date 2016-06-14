@@ -1,3 +1,7 @@
+<?php
+    session_start();
+    date_default_timezone_set('PRC');
+?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
@@ -138,8 +142,7 @@
  	 #show{display: none; position: absolute; top: 25%; left: 22%; width: 53%; height: 49%; padding: 8px; border: 8px solid #E8E9F7; background-color: white; z-index:1002; overflow: auto;}
  
     </style>
-
-      <style type="text/css">
+    <style type="text/css">
     p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: justify; line-height: 20.0px; font: 14.0px 'Songti SC'; color: #000000; -webkit-text-stroke: #000000}
     p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: justify; line-height: 16.0px; font: 14.0px 'Times New Roman'; color: #000000; -webkit-text-stroke: #000000}
     p.p3 {margin: 0.0px 0.0px 0.0px 0.0px; text-align: justify; line-height: 20.0px; font: 14.0px 'Times New Roman'; color: #000000; -webkit-text-stroke: #000000}
@@ -254,51 +257,42 @@
 	<button type="submit" >Search</button>
 </form>
 
-<div style="font: 13px 'Lucida sans', Arial, Helvetica; color: black; text-align: left;">
-	
-
-
+<div style="font: 13px; color: black; text-align: left;">
 	<?php
 
-	
-	if(isset($_POST["keyWord"])){
+    $access_ip=$_SERVER["REMOTE_ADDR"];
+    $log_cont = file_get_contents('keyword.log');
+    $access_count = mb_substr_count($log_cont, $access_ip, "UTF-8");
+    $info="<u style='font-size:1.2em;color:red'>{$access_ip}您已成功查询:({$access_count})次</u><br/>";
+     echo $info;
+
+    if(isset($_POST["keyWord"])){
         $key_word=$_POST["keyWord"];
-		echo $key_word.'<br/>';
+        if($key_word==""){
+            echo '请输入关键字!';
+            exit;
+        }
+        $seach_type= get_string_type($key_word);
 
-        
-       $seach_type= get_string_type($key_word);
+        //$ip = $_SERVER["REMOTE_ADDR"];
+        $log_str=date("Y-m-d H:i:s").",{$access_ip},{$seach_type},".$key_word."\n";
+        file_put_contents('keyword.log',$log_str,FILE_APPEND);
 
-        // if (preg_match("/^[\x7f-\xff]+$/", $key_word)) { //兼容gb2312,utf-8
-        //     echo "无英文输入";
-        // } else {
-        //     if(preg_match("/^[a-zA-Z\s]+$/",$key_word)){
-        //          echo "全部为英文或者字母";
-        //      }else{
-        //          echo "有中文，或者数字，特殊符号存在";
-        //      }
-           
-        // }
+         if($seach_type==3){
+             echo "<h2><em>({$key_word})</em>  请输入文本或者拼音数字！请不要混合查询</h2>";
+             echo "<h3>例1:windows servet2008</h3>";
+             echo "<h3>例2:下列关于工程变更监控的表述正确的有</h3>";
+             // seach_doc($key_word,$conts);
+         }else{
+             //小于20次就执行
+             read_all_dir(dirname(__FILE__).'/zh',$key_word,$seach_type);
+//             seach_str($conts,$key_word,0,0);
+         }
+        //查询
 
-       // echo $seach_type;
-
-       // exit;
-
-        //echo strtolower($key_word);
-
-        $encode = mb_detect_encoding($key_word,  array("ASCII","UTF-8","GB2312","GBK","BIG5")); 
-
-        echo $encode;
-
-         $encode = mb_detect_encoding("<u style='font-size:1.2em;color:red'>(",  array("ASCII","UTF-8","GB2312","GBK","BIG5")); 
-
-          echo '<br>'.$encode;
-          // if ($encode == “UTF-8″){ 
-        // $keytitle = iconv("UTF-8″,"GBK",$key_word); 
-        // } 
-       
-		read_all_dir('/zh',$key_word,$seach_type);
 	}
 
+    //获取文本类型
     function get_string_type($key_word){
         $strA= trim($key_word);   
         $lenA= strlen($strA); //检测字符串实际长度
@@ -314,8 +308,14 @@
         }  
     }
 
-	 
-	//遍历文件夹
+
+    /**
+     * 遍历文件夹
+     * @param $dir
+     * @param $key_word
+     * @param $seach_type
+     * @return array
+     */
 	function read_all_dir($dir,$key_word,$seach_type)
     {
         $result = array();
@@ -333,50 +333,38 @@
                     }
                     else
                     {
-                    	
-                        $file_name =pathinfo($cur_path,PATHINFO_BASENAME);
-                        
-                        if($file_name{0}<>"~"){
-                        	if(pathinfo($cur_path,PATHINFO_EXTENSION)=='html'){
-                        		 echo '<br>'.$cur_path.'<br/>';
-                        		 //$str='PMP';
+                        $pathinfo = pathinfo($cur_path);
+                        $file_name=$pathinfo['filename'];
+                        if($file_name) {
+                            if ($file_name{0} <> "~") {
+                                if ($pathinfo['extension'] == 'html') {
+                                    $runtime = new runtime;
+                                    $runtime->start();
+                                    $conts = file_get_contents($cur_path);
+                                    $sum = mb_substr_count($conts, $key_word, "UTF-8");
 
-                                $runtime= new runtime;  
-                                $runtime->start(); 
+                                    echo "<u style='font-size:1.3em;color:royalblue'>{$file_name}--{$key_word}->(匹配结果：{$sum}个)</u>";
 
-                                //用APACHE可以实现硬件负载均衡
-    	 					     //$conts =  file_get_contents("http://7lrz5t.com1.z0.glb.clouddn.com/4.html");
-    	 
-                                 $conts=file_get_contents($cur_path);
+                                    if ($sum) {
+                                        if ($sum < 200) {
+                                            seach_str($conts,$key_word, 0, 0,$seach_type);
 
-                                 $encode1 = mb_detect_encoding($conts,  array("ASCII","UTF-8","GB2312","GBK","BIG5")); 
+                                        } else {
+                                            echo "匹配结果超过100个请重新查询!";
+                                            exit;
+                                        }
 
-                                 echo '内容编码:'.$encode1.'<hr>';
-
-                                $sum=mb_substr_count($conts,$key_word,"UTF-8");
-                                if($sum){
-                                    if($seach_type==3){
-                                        echo "seach_doc";
-                                        seach_doc($key_word,$conts);
-                                    }else{
-                                        seach_str($conts,$key_word,0,0);
                                     }
+                                    $runtime->stop();
+
+                                    $spent_time =round(($runtime->spent())/1000,2,PHP_ROUND_HALF_DOWN);
+
+                                    echo "<u style='font-size:1.2em;color:red'>查询耗时:{$spent_time}秒</u><hr/>";
+                                    //
+
+                                    //$result['file'][] = $cur_path;
                                 }
-                                
-                               
-    							
-
-                                 
-
-                                 $runtime->stop();  
-                                    
-                                
-                                 echo '<br/>'.'总数：'.$sum.'----------<br>';
-                                 echo '<u style="font-size:1.2em;color:red">页面执行时间: '.$runtime->spent()."毫秒</u><br/>";  
-                                // 
-
-                        		 //$result['file'][] = $cur_path;
-                        	} 
+                            }
                         }
                    }
                 }
@@ -385,13 +373,16 @@
         }
         return $result;
     }
-   
-   //  exit();
 
+    /**
+     *字符串匹配
+     * @param $str 字符串
+     * @param $find 匹配条件
+     * @param $n 开始查找的位置
+     * @param $count_id 总序号
+     */
+  function seach_str($str,$find,$n,$count_id,$seach_tpye){
 
-  //$count_id=0;
-  function seach_str($str,$find,$n,$count_id){
-     
         $pos = strpos($str,$find,$n);
         if($pos>0){
             $pos= $pos+strlen($find);
@@ -399,29 +390,35 @@
             echo '<br/>'.$count_id.':'.$pos.':<hr>';
             //echo $count_id.':'.$pos.':<br>';
             //$str =  $str{$pos};
-            $puls_arr=array();
+             $puls_arr=array();
 
-            for($f=1000;$f>1;$f--)
+           // $result_str="";
+
+            for($f=900;$f>0;$f--)
             {
                 array_push($puls_arr,$str[$pos-$f]);
-                if($f==strlen($find)){
-                    array_push($puls_arr,"<u style='font-size:1.2em;color:red'>(");
+                //$result_str.=$str[$pos-$f];
+                if(($f-1)==strlen($find)){
+
+                     array_push($puls_arr,"<u style='font-size:1.2em;color:red'>");
+                     //array_push($puls_arr,$str[$pos-4]);
                 }
             }
 
 
- 
-            array_push($puls_arr,")</u>");
+            array_push($puls_arr,"</u>");
            
             for($i=0;$i<1000;$i++)
             {
-                array_push($puls_arr,$str[$pos+$i]);
+                 array_push($puls_arr,$str[$pos+$i]);
+               // $result_str.=$str[$pos-$i];
             }
-            $puls_str=join($puls_arr);
 
-             echo $puls_str;
+             $puls_str=join($puls_arr);
 
-            seach_str($str,$find,$pos,$count_id);
+            echo $puls_str;
+
+            seach_str($str,$find,$pos,$count_id,$seach_tpye);
         }
  }
 
@@ -472,46 +469,35 @@
 }
 
 
-    // public function str_n_pos($str,$find,$n){
-    //     for ($i=1;$i<=$n;$i++){
-    //         $pos = strpos($str,$find);
-    //         $str = substr($str,$pos+1);
-    //         $pos_val=$pos+$pos_val+1;
-    //     }
-    //     return $pos_val-1;
-    // }
+    class runtime
+    {
+        var $StartTime = 0;
+        var $StopTime = 0;
 
-    
+        function get_microtime()
+        {
+            list($usec, $sec) = explode(' ', microtime());
+            return ((float)$usec + (float)$sec);
+        }
 
-class runtime  
-{  
-    var $StartTime = 0;  
-    var $StopTime = 0;  
-   
-    function get_microtime()  
-    {  
-        list($usec, $sec) = explode(' ', microtime());  
-        return ((float)$usec + (float)$sec);  
-    }  
-   
-    function start()  
-    {  
-        $this->StartTime = $this->get_microtime();  
-    }  
-   
-    function stop()  
-    {  
-        $this->StopTime = $this->get_microtime();  
-    }  
-   
-    function spent()  
-    {  
-        return round(($this->StopTime - $this->StartTime) * 1000, 1);  
-    }  
-   
-}  
-?> 
+        function start()
+        {
+            $this->StartTime = $this->get_microtime();
+        }
 
+        function stop()
+        {
+            $this->StopTime = $this->get_microtime();
+        }
+
+        function spent()
+        {
+            return round(($this->StopTime - $this->StartTime) * 1000, 1);
+        }
+
+    }
+
+    ?>
 
 </div>
 </body>
